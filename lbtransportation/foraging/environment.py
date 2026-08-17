@@ -744,17 +744,38 @@ class TransportationEnv(gym.Env):
                 self.box_lifted_status[box_pos] = False
                 
         # Move players after boxes
-        collisions = defaultdict(list)
+        blocked_players = set()
+        
         for player in self.players:
-            collisions[moving_players[player]].append(player)
-
-        for k, v in collisions.items():
-            if len(v) > 1 or self.field[k[0], k[1]] > 0:
-                # collision! everyone stays in place
-                for p in v:
-                    p.reward -= self.penalty
-                continue
-            v[0].position = k
+            target = moving_players[player]
+            if self.field[target[0], target[1]] > 0:
+                blocked_players.add(player)
+                
+        while True:
+            new_blocked = set()
+            target_counts = defaultdict(list)
+            
+            for p in self.players:
+                if p in blocked_players:
+                    target_counts[p.position].append(p)
+                else:
+                    target_counts[moving_players[p]].append(p)
+                    
+            for target, players_targeting in target_counts.items():
+                if len(players_targeting) > 1:
+                    for p in players_targeting:
+                        if p not in blocked_players:
+                            new_blocked.add(p)
+                            
+            if not new_blocked:
+                break
+            blocked_players.update(new_blocked)
+            
+        for p in self.players:
+            if p in blocked_players:
+                p.reward -= self.penalty
+            else:
+                p.position = moving_players[p]
 
         # Process new loadings
         while loading_players:
