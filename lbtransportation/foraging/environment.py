@@ -58,7 +58,7 @@ class Player:
             return "Player"
 
 
-class ForagingEnv(gym.Env):
+class TransportationEnv(gym.Env):
     """
     A class that contains rules/actions for the game level-based foraging.
     """
@@ -94,6 +94,7 @@ class ForagingEnv(gym.Env):
         observe_agent_levels=True,
         penalty=0.0,
         render_mode=None,
+        curriculum=False,
     ):
         self.logger = logging.getLogger(__name__)
         self.render_mode = render_mode
@@ -102,6 +103,7 @@ class ForagingEnv(gym.Env):
         self.field = np.zeros(field_size, np.int32)
 
         self.penalty = penalty
+        self.curriculum = curriculum
 
         if isinstance(min_food_level, Iterable):
             assert (
@@ -180,6 +182,9 @@ class ForagingEnv(gym.Env):
         self.viewer = None
 
         self.n_agents = len(self.players)
+        
+        self.goal_pos = None
+        self.box_lifted_status = {}
 
     def seed(self, seed=None):
         if seed is not None:
@@ -204,18 +209,18 @@ class ForagingEnv(gym.Env):
             max_num_food = self.max_num_food
 
             if self._observe_agent_levels:
-                min_obs = [-1, -1, 0] * max_num_food + [-1, -1, 0] * len(self.players)
-                max_obs = [field_x - 1, field_y - 1, max_food_level] * max_num_food + [
+                min_obs = [-1, -1, 0, 0] * max_num_food + [-1, -1, 0] * len(self.players) + [-1, -1]
+                max_obs = [field_x - 1, field_y - 1, max_food_level, 1] * max_num_food + [
                     field_x - 1,
                     field_y - 1,
                     max(self.max_player_level),
-                ] * len(self.players)
+                ] * len(self.players) + [field_x - 1, field_y - 1]
             else:
-                min_obs = [-1, -1, 0] * max_num_food + [-1, -1] * len(self.players)
-                max_obs = [field_x - 1, field_y - 1, max_food_level] * max_num_food + [
+                min_obs = [-1, -1, 0, 0] * max_num_food + [-1, -1] * len(self.players) + [-1, -1]
+                max_obs = [field_x - 1, field_y - 1, max_food_level, 1] * max_num_food + [
                     field_x - 1,
                     field_y - 1,
-                ] * len(self.players)
+                ] * len(self.players) + [field_x - 1, field_y - 1]
         else:
             # grid observation space
             grid_shape = (1 + 2 * self.sight, 1 + 2 * self.sight)
@@ -233,13 +238,21 @@ class ForagingEnv(gym.Env):
             foods_min = np.zeros(grid_shape, dtype=np.float32)
             foods_max = np.ones(grid_shape, dtype=np.float32) * max_food_level
 
-            # access layer: i the cell available
+            # access layer: is the cell available
             access_min = np.zeros(grid_shape, dtype=np.float32)
             access_max = np.ones(grid_shape, dtype=np.float32)
 
+            # lifted layer: is a box lifted
+            lifted_min = np.zeros(grid_shape, dtype=np.float32)
+            lifted_max = np.ones(grid_shape, dtype=np.float32)
+
+            # goal layer: is it the goal
+            goal_min = np.zeros(grid_shape, dtype=np.float32)
+            goal_max = np.ones(grid_shape, dtype=np.float32)
+
             # total layer
-            min_obs = np.stack([agents_min, foods_min, access_min])
-            max_obs = np.stack([agents_max, foods_max, access_max])
+            min_obs = np.stack([agents_min, foods_min, access_min, lifted_min, goal_min])
+            max_obs = np.stack([agents_max, foods_max, access_max, lifted_max, goal_max])
 
         low_obs = np.array(min_obs)
         high_obs = np.array(max_obs)
@@ -384,6 +397,8 @@ class ForagingEnv(gym.Env):
         for a in self.players:
             if a.position and row == a.position[0] and col == a.position[1]:
                 return False
+        if hasattr(self, 'goal_pos') and self.goal_pos == (row, col):
+            return False
 
         return True
 
@@ -414,25 +429,13 @@ class ForagingEnv(gym.Env):
         if action == Action.NONE:
             return True
         elif action == Action.NORTH:
-            return (
-                player.position[0] > 0
-                and self.field[player.position[0] - 1, player.position[1]] == 0
-            )
+            return player.position[0] > 0
         elif action == Action.SOUTH:
-            return (
-                player.position[0] < self.rows - 1
-                and self.field[player.position[0] + 1, player.position[1]] == 0
-            )
+            return player.position[0] < self.rows - 1
         elif action == Action.WEST:
-            return (
-                player.position[1] > 0
-                and self.field[player.position[0], player.position[1] - 1] == 0
-            )
+            return player.position[1] > 0
         elif action == Action.EAST:
-            return (
-                player.position[1] < self.cols - 1
-                and self.field[player.position[0], player.position[1] + 1] == 0
-            )
+            return player.position[1] < self.cols - 1
         elif action == Action.LOAD:
             return self.adjacent_food(*player.position) > 0
 
@@ -494,27 +497,35 @@ class ForagingEnv(gym.Env):
             ]
 
             for i in range(self.max_num_food):
-                obs[3 * i] = -1
-                obs[3 * i + 1] = -1
-                obs[3 * i + 2] = 0
+                obs[4 * i] = -1
+                obs[4 * i + 1] = -1
+                obs[4 * i + 2] = 0
+                obs[4 * i + 3] = 0
 
             for i, (y, x) in enumerate(zip(*np.nonzero(observation.field))):
-                obs[3 * i] = y
-                obs[3 * i + 1] = x
-                obs[3 * i + 2] = observation.field[y, x]
+                obs[4 * i] = y
+                obs[4 * i + 1] = x
+                obs[4 * i + 2] = observation.field[y, x]
+                obs[4 * i + 3] = 1 if self.box_lifted_status.get((y, x), False) else 0
 
             player_obs_len = 3 if self._observe_agent_levels else 2
+            offset = self.max_num_food * 4
             for i in range(len(self.players)):
-                obs[self.max_num_food * 3 + player_obs_len * i] = -1
-                obs[self.max_num_food * 3 + player_obs_len * i + 1] = -1
+                obs[offset + player_obs_len * i] = -1
+                obs[offset + player_obs_len * i + 1] = -1
                 if self._observe_agent_levels:
-                    obs[self.max_num_food * 3 + player_obs_len * i + 2] = 0
+                    obs[offset + player_obs_len * i + 2] = 0
 
             for i, p in enumerate(seen_players):
-                obs[self.max_num_food * 3 + player_obs_len * i] = p.position[0]
-                obs[self.max_num_food * 3 + player_obs_len * i + 1] = p.position[1]
+                obs[offset + player_obs_len * i] = p.position[0]
+                obs[offset + player_obs_len * i + 1] = p.position[1]
                 if self._observe_agent_levels:
-                    obs[self.max_num_food * 3 + player_obs_len * i + 2] = p.level
+                    obs[offset + player_obs_len * i + 2] = p.level
+            
+            # Goal
+            goal_offset = offset + player_obs_len * len(self.players)
+            obs[goal_offset] = self.goal_pos[0] if self.goal_pos else -1
+            obs[goal_offset + 1] = self.goal_pos[1] if self.goal_pos else -1
 
             return obs
 
@@ -556,8 +567,17 @@ class ForagingEnv(gym.Env):
             foods_x, foods_y = self.field.nonzero()
             for x, y in zip(foods_x, foods_y):
                 access_layer[x + self.sight, y + self.sight] = 0.0
+                
+            lifted_layer = np.zeros(grid_shape, dtype=np.float32)
+            for (r, c), lifted in self.box_lifted_status.items():
+                if lifted:
+                    lifted_layer[r + self.sight, c + self.sight] = 1.0
+            
+            goal_layer = np.zeros(grid_shape, dtype=np.float32)
+            if self.goal_pos is not None:
+                goal_layer[self.goal_pos[0] + self.sight, self.goal_pos[1] + self.sight] = 1.0
 
-            return np.stack([agents_layer, foods_layer, access_layer])
+            return np.stack([agents_layer, foods_layer, access_layer, lifted_layer, goal_layer])
 
         def get_agent_grid_bounds(agent_x, agent_y):
             return (
@@ -599,22 +619,45 @@ class ForagingEnv(gym.Env):
             super().reset(seed=seed, options=options)
 
         self.field = np.zeros(self.field_size, np.int32)
+        
+        if getattr(self, 'curriculum', False):
+            self.goal_pos = (3, 3)
+            direction = self.np_random.integers(0, 4)
+            if direction == 0: self.field[3,2] = 2
+            elif direction == 1: self.field[2,3] = 2
+            elif direction == 2: self.field[3,4] = 2
+            else: self.field[4,3] = 2
+            self._food_spawned = self.field.sum()
+        else:
+            # Goal position is determined later if needed, but for now we set it randomly
+            self.goal_pos = self._get_random_empty_pos()
+
         self.spawn_players(self.min_player_level, self.max_player_level)
         player_levels = sorted([player.level for player in self.players])
+        
+        if not getattr(self, 'curriculum', False):
+            self.spawn_food(
+                self.max_num_food,
+                min_levels=self.min_food_level,
+                max_levels=self.max_food_level
+                if self.max_food_level is not None
+                else np.array([sum(player_levels[:3])] * self.max_num_food),
+            )
 
-        self.spawn_food(
-            self.max_num_food,
-            min_levels=self.min_food_level,
-            max_levels=self.max_food_level
-            if self.max_food_level is not None
-            else np.array([sum(player_levels[:3])] * self.max_num_food),
-        )
         self.current_step = 0
         self._game_over = False
+        
+        self.box_lifted_status = {}
+        self.delivered_boxes = []
+            
         self._gen_valid_moves()
 
         nobs = self._make_gym_obs()
         return nobs, self._get_info()
+
+    def _get_random_empty_pos(self):
+        # Fix the goal diagonally adjacent to the lower right corner
+        return (self.rows - 2, self.cols - 2)
 
     def step(self, actions):
         self.current_step += 1
@@ -638,73 +681,125 @@ class ForagingEnv(gym.Env):
                 actions[i] = Action.NONE
 
         loading_players = set()
+        moving_players = {}
 
-        # move players
-        # if two or more players try to move to the same location they all fail
-        collisions = defaultdict(list)
-
-        # so check for collisions
+        # determine intended movements
         for player, action in zip(self.players, actions):
             if action == Action.NONE:
-                collisions[player.position].append(player)
+                moving_players[player] = player.position
             elif action == Action.NORTH:
-                collisions[(player.position[0] - 1, player.position[1])].append(player)
+                moving_players[player] = (player.position[0] - 1, player.position[1])
             elif action == Action.SOUTH:
-                collisions[(player.position[0] + 1, player.position[1])].append(player)
+                moving_players[player] = (player.position[0] + 1, player.position[1])
             elif action == Action.WEST:
-                collisions[(player.position[0], player.position[1] - 1)].append(player)
+                moving_players[player] = (player.position[0], player.position[1] - 1)
             elif action == Action.EAST:
-                collisions[(player.position[0], player.position[1] + 1)].append(player)
+                moving_players[player] = (player.position[0], player.position[1] + 1)
             elif action == Action.LOAD:
-                collisions[player.position].append(player)
+                moving_players[player] = player.position
                 loading_players.add(player)
 
-        # and do movements for non colliding players
+        # resolve boxes being transported
+        for box_pos, is_lifted in list(self.box_lifted_status.items()):
+            if not is_lifted:
+                continue
+            
+            frow, fcol = box_pos
+            box_level = self.field[frow, fcol]
+            if box_level == 0:
+                self.box_lifted_status.pop(box_pos, None)
+                continue
+            
+            adj_players = self.adjacent_players(frow, fcol)
+            # Find players that were attached to the box
+            
+            movement_actions = [actions[self.players.index(p)] for p in adj_players]
+            
+            if len(set(movement_actions)) == 1 and movement_actions[0] in [Action.NORTH, Action.SOUTH, Action.WEST, Action.EAST]:
+                action = movement_actions[0]
+                adj_player_level = sum([a.level for a in adj_players])
+                if adj_player_level >= box_level:
+                    # Move box
+                    if action == Action.NORTH: new_box_pos = (frow - 1, fcol)
+                    elif action == Action.SOUTH: new_box_pos = (frow + 1, fcol)
+                    elif action == Action.WEST: new_box_pos = (frow, fcol - 1)
+                    elif action == Action.EAST: new_box_pos = (frow, fcol + 1)
+                    
+                    # check box collision with walls
+                    if 0 <= new_box_pos[0] < self.rows and 0 <= new_box_pos[1] < self.cols:
+                        self.field[new_box_pos[0], new_box_pos[1]] = box_level
+                        self.field[frow, fcol] = 0
+                        self.box_lifted_status.pop(box_pos)
+                        self.box_lifted_status[new_box_pos] = True
+                    else:
+                        # Box hits a wall, drop it
+                        self.box_lifted_status[box_pos] = False
+                        # Cancel player movements
+                        for p in adj_players:
+                            moving_players[p] = p.position
+                            p.reward -= self.penalty
+                else:
+                    self.box_lifted_status[box_pos] = False
+            else:
+                self.box_lifted_status[box_pos] = False
+                
+        # Move players after boxes
+        collisions = defaultdict(list)
+        for player in self.players:
+            collisions[moving_players[player]].append(player)
+
         for k, v in collisions.items():
-            if len(v) > 1:  # make sure no more than an player will arrive at location
+            if len(v) > 1 or self.field[k[0], k[1]] > 0:
+                # collision! everyone stays in place
+                for p in v:
+                    p.reward -= self.penalty
                 continue
             v[0].position = k
 
-        # finally process the loadings:
+        # Process new loadings
         while loading_players:
-            # find adjacent food
             player = loading_players.pop()
-            frow, fcol = self.adjacent_food_location(*player.position)
-            food = self.field[frow, fcol]
+            loc = self.adjacent_food_location(*player.position)
+            if loc is None:
+                player.reward -= self.penalty
+                continue
+            
+            frow, fcol = loc
+            box_level = self.field[frow, fcol]
+            if box_level == 0:
+                continue
 
             adj_players = self.adjacent_players(frow, fcol)
-            adj_players = [
-                p for p in adj_players if p in loading_players or p is player
-            ]
-
+            adj_players = [p for p in adj_players if p in loading_players or p is player]
             adj_player_level = sum([a.level for a in adj_players])
             loading_players = loading_players - set(adj_players)
 
-            if adj_player_level < food:
-                # failed to load
+            if adj_player_level >= box_level:
+                self.box_lifted_status[(frow, fcol)] = True
+            else:
                 for a in adj_players:
                     a.reward -= self.penalty
-                continue
 
-            # else the food was loaded and each player scores points
-            for a in adj_players:
-                a.reward = float(a.level * food)
-                if self._normalize_reward:
-                    a.reward = a.reward / float(
-                        adj_player_level * self._food_spawned
-                    )  # normalize reward
-            # and the food is removed
-            self.field[frow, fcol] = 0
+        # Check Goal
+        if self.goal_pos is not None:
+            grow, gcol = self.goal_pos
+            if self.field[grow, gcol] > 0:
+                self.delivered_boxes.append((grow, gcol, self.field[grow, gcol]))
+                self.field[grow, gcol] = 0
+                self.box_lifted_status.pop(self.goal_pos, None)
+                for p in self.players:
+                    p.reward += 1.0
+                self.goal_pos = self._get_random_empty_pos()
 
-        self._game_over = (
-            self.field.sum() == 0 or self._max_episode_steps <= self.current_step
-        )
+        # Update valid moves
         self._gen_valid_moves()
 
         for p in self.players:
+            p.reward -= 0.01
             p.score += p.reward
 
         rewards = [p.reward for p in self.players]
+        self._game_over = (self.field.sum() == 0 or self._max_episode_steps <= self.current_step)
         done = self._game_over
         truncated = False
         info = self._get_info()

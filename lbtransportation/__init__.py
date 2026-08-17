@@ -16,7 +16,7 @@ for s, p, f, mfl, c, po, pen in product(
     sizes, players, foods, max_food_level, coop, partial_obs, pens
 ):
     register(
-        id="Foraging{4}-{0}x{0}-{1}p-{2}f{3}{5}{6}-v3".format(
+        id="Transportation{4}-{0}x{0}-{1}p-{2}f{3}{5}{6}-v3".format(
             s,
             p,
             f,
@@ -25,7 +25,7 @@ for s, p, f, mfl, c, po, pen in product(
             "-ind" if mfl else "",
             "-pen" if pen else "",
         ),
-        entry_point="lbforaging.foraging:ForagingEnv",
+        entry_point="lbtransportation.foraging:TransportationEnv",
         kwargs={
             "players": p,
             "min_player_level": 1,
@@ -43,11 +43,70 @@ for s, p, f, mfl, c, po, pen in product(
     )
 
 
+register(
+    id="Transportation-8x8-2p-1f-custom-v3",
+    entry_point="lbtransportation.foraging:TransportationEnv",
+    kwargs={
+        "players": 2,
+        "min_player_level": 1,
+        "max_player_level": 1,
+        "field_size": (8, 8),
+        "min_food_level": 2,
+        "max_food_level": [2],
+        "max_num_food": 1,
+        "sight": 8,
+        "max_episode_steps": 50,
+        "force_coop": True,
+        "grid_observation": False,
+        "penalty": 0.0,
+    },
+)
+
+register(
+    id="Transportation-5x5-2p-1f-custom-v3",
+    entry_point="lbtransportation.foraging:TransportationEnv",
+    kwargs={
+        "players": 2,
+        "min_player_level": 1,
+        "max_player_level": 1,
+        "field_size": (5, 5),
+        "min_food_level": 2,
+        "max_food_level": [2],
+        "max_num_food": 1,
+        "sight": 5,
+        "max_episode_steps": 50,
+        "force_coop": True,
+        "grid_observation": False,
+        "penalty": 0.0,
+    },
+)
+
+
+register(
+    id="Transportation-5x5-2p-1f-curriculum-v3",
+    entry_point="lbtransportation.foraging:TransportationEnv",
+    kwargs={
+        "players": 2,
+        "min_player_level": 1,
+        "max_player_level": 1,
+        "field_size": (5, 5),
+        "min_food_level": 2,
+        "max_food_level": [2],
+        "max_num_food": 1,
+        "sight": 5,
+        "max_episode_steps": 50,
+        "force_coop": True,
+        "grid_observation": False,
+        "penalty": 0.0,
+        "curriculum": True,
+    },
+)
+
 def register_grid_envs():
     for s, p, f, mfl, c in product(sizes, players, foods, max_food_level, coop):
         for sight in range(1, s + 1):
             register(
-                id="Foraging-grid{4}-{0}x{0}-{1}p-{2}f{3}{5}-v3".format(
+                id="Transportation-grid{4}-{0}x{0}-{1}p-{2}f{3}{5}-v3".format(
                     s,
                     p,
                     f,
@@ -55,7 +114,7 @@ def register_grid_envs():
                     "" if sight == s else f"-{sight}s",
                     "-ind" if mfl else "",
                 ),
-                entry_point="lbforaging.foraging:ForagingEnv",
+                entry_point="lbtransportation.foraging:TransportationEnv",
                 kwargs={
                     "players": p,
                     "min_player_level": 1,

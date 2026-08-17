@@ -118,6 +118,7 @@ class Viewer(object):
         self.window.dispatch_events()
 
         self._draw_grid()
+        self._draw_goal(env)
         self._draw_food(env)
         self._draw_players(env)
 
@@ -169,6 +170,28 @@ class Viewer(object):
             )
         batch.draw()
 
+    def _draw_goal(self, env):
+        if getattr(env, 'goal_pos', None) is None:
+            return
+        row, col = env.goal_pos
+        x = (self.grid_size + 1) * col + 1
+        y = self.height - (self.grid_size + 1) * (row + 1) + 1
+        w = self.grid_size - 1
+        h = self.grid_size - 1
+        
+        batch = pyglet.graphics.Batch()
+        batch.add(
+            4,
+            gl.GL_QUADS,
+            None,
+            (
+                "v2f",
+                (x, y, x + w, y, x + w, y + h, x, y + h),
+            ),
+            ("c3B", (*_GREEN, *_GREEN, *_GREEN, *_GREEN)),
+        )
+        batch.draw()
+
     def _draw_food(self, env):
         idxes = list(zip(*env.field.nonzero()))
         apples = []
@@ -176,20 +199,40 @@ class Viewer(object):
 
         # print(env.field)
         for row, col in idxes:
-            apples.append(
-                pyglet.sprite.Sprite(
+            sprite = pyglet.sprite.Sprite(
+                self.img_apple,
+                (self.grid_size + 1) * col,
+                self.height - (self.grid_size + 1) * (row + 1),
+                batch=batch,
+            )
+            if env.box_lifted_status.get((row, col), False):
+                sprite.color = (150, 150, 150)
+            apples.append(sprite)
+            
+        for a in apples:
+            a.update(scale=self.grid_size / a.width)
+
+        if hasattr(env, 'delivered_boxes'):
+            for row, col, level in env.delivered_boxes:
+                sprite = pyglet.sprite.Sprite(
                     self.img_apple,
                     (self.grid_size + 1) * col,
                     self.height - (self.grid_size + 1) * (row + 1),
                     batch=batch,
                 )
-            )
-        for a in apples:
-            a.update(scale=self.grid_size / a.width)
+                sprite.color = (255, 255, 50)  # Yellow instead of green
+                sprite.update(scale=self.grid_size / sprite.width)
+                apples.append(sprite)
+                # Note: We append to apples so it doesn't get garbage collected, but we update scale immediately
+
         batch.draw()
 
         for row, col in idxes:
             self._draw_badge(row, col, env.field[row, col])
+            
+        if hasattr(env, 'delivered_boxes'):
+            for row, col, level in env.delivered_boxes:
+                self._draw_badge(row, col, level)
 
     def _draw_players(self, env):
         players = []

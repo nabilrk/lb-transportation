@@ -1,9 +1,9 @@
 from setuptools import setup, find_packages
 
 setup(
-    name="lbforaging",
+    name="lbtransportation",
     version="2.0.0",
-    description="Level Based Foraging Environment",
+    description="Level Based Transportation Environment",
     author="Filippos Christianos",
     url="https://github.com/semitable/lb-foraging",
     packages=find_packages(exclude=["contrib", "docs", "tests"]),
