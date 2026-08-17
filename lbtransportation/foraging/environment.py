@@ -621,16 +621,17 @@ class TransportationEnv(gym.Env):
         self.field = np.zeros(self.field_size, np.int32)
         
         if getattr(self, 'curriculum', False):
-            self.goal_pos = (3, 3)
+            goal_r, goal_c = self._get_goal_pos()
+            self.goal_pos = (goal_r, goal_c)
             direction = self.np_random.integers(0, 4)
-            if direction == 0: self.field[3,2] = 2
-            elif direction == 1: self.field[2,3] = 2
-            elif direction == 2: self.field[3,4] = 2
-            else: self.field[4,3] = 2
+            if direction == 0: self.field[goal_r, goal_c - 1] = 2
+            elif direction == 1: self.field[goal_r - 1, goal_c] = 2
+            elif direction == 2: self.field[goal_r, goal_c + 1] = 2
+            else: self.field[goal_r + 1, goal_c] = 2
             self._food_spawned = self.field.sum()
         else:
             # Goal position is determined later if needed, but for now we set it randomly
-            self.goal_pos = self._get_random_empty_pos()
+            self.goal_pos = self._get_goal_pos()
 
         self.spawn_players(self.min_player_level, self.max_player_level)
         player_levels = sorted([player.level for player in self.players])
@@ -655,7 +656,7 @@ class TransportationEnv(gym.Env):
         nobs = self._make_gym_obs()
         return nobs, self._get_info()
 
-    def _get_random_empty_pos(self):
+    def _get_goal_pos(self):
         # Fix the goal diagonally adjacent to the lower right corner
         return (self.rows - 2, self.cols - 2)
 
@@ -810,7 +811,7 @@ class TransportationEnv(gym.Env):
                 self.box_lifted_status.pop(self.goal_pos, None)
                 for p in self.players:
                     p.reward += 1.0
-                self.goal_pos = self._get_random_empty_pos()
+                self.goal_pos = self._get_goal_pos()
 
         # Update valid moves
         self._gen_valid_moves()
