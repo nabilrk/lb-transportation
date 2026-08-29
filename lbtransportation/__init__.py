@@ -102,6 +102,27 @@ register(
     },
 )
 
+register(
+    id="Transportation-8x8-2p-1f-curriculum-v3",
+    entry_point="lbtransportation.foraging:TransportationEnv",
+    kwargs={
+        "players": 2,
+        "min_player_level": 1,
+        "max_player_level": 1,
+        "field_size": (8, 8),
+        "min_food_level": 2,
+        "max_food_level": [2],
+        "max_num_food": 1,
+        "sight": 8,
+        "max_episode_steps": 50,
+        "force_coop": True,
+        "grid_observation": False,
+        "penalty": 0.0,
+        "curriculum": True,
+    },
+)
+
+
 def register_grid_envs():
     for s, p, f, mfl, c in product(sizes, players, foods, max_food_level, coop):
         for sight in range(1, s + 1):
