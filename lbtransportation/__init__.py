@@ -81,6 +81,25 @@ register(
     },
 )
 
+register(
+    id="Transportation-5x5-4p-2f-custom-v3",
+    entry_point="lbtransportation.foraging:TransportationEnv",
+    kwargs={
+        "players": 4,
+        "min_player_level": 1,
+        "max_player_level": 1,
+        "field_size": (5, 5),
+        "min_food_level": 2,
+        "max_food_level": 2,
+        "max_num_food": 2,
+        "sight": 5,
+        "max_episode_steps": 100,
+        "force_coop": True,
+        "grid_observation": False,
+        "penalty": 0.0,
+    },
+)
+
 
 register(
     id="Transportation-5x5-2p-1f-curriculum-v3",
