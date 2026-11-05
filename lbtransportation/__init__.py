@@ -100,6 +100,101 @@ register(
     },
 )
 
+register(
+    id="Transportation-6x6-4p-2f-custom-v3",
+    entry_point="lbtransportation.foraging:TransportationEnv",
+    kwargs={
+        "players": 4,
+        "min_player_level": 1,
+        "max_player_level": 1,
+        "field_size": (6, 6),
+        "min_food_level": 2,
+        "max_food_level": 2,
+        "max_num_food": 2,
+        "sight": 6,
+        "max_episode_steps": 100,
+        "force_coop": True,
+        "grid_observation": False,
+        "penalty": 0.0,
+    },
+)
+
+register(
+    id="Transportation-7x7-4p-2f-custom-v3",
+    entry_point="lbtransportation.foraging:TransportationEnv",
+    kwargs={
+        "players": 4,
+        "min_player_level": 1,
+        "max_player_level": 1,
+        "field_size": (7, 7),
+        "min_food_level": 2,
+        "max_food_level": 2,
+        "max_num_food": 2,
+        "sight": 7,
+        "max_episode_steps": 100,
+        "force_coop": True,
+        "grid_observation": False,
+        "penalty": 0.0,
+    },
+)
+
+register(
+    id="Transportation-8x8-4p-2f-custom-v3",
+    entry_point="lbtransportation.foraging:TransportationEnv",
+    kwargs={
+        "players": 4,
+        "min_player_level": 1,
+        "max_player_level": 1,
+        "field_size": (8, 8),
+        "min_food_level": 2,
+        "max_food_level": 2,
+        "max_num_food": 2,
+        "sight": 8,
+        "max_episode_steps": 100,
+        "force_coop": True,
+        "grid_observation": False,
+        "penalty": 0.0,
+    },
+)
+
+register(
+    id="Transportation-9x9-4p-2f-custom-v3",
+    entry_point="lbtransportation.foraging:TransportationEnv",
+    kwargs={
+        "players": 4,
+        "min_player_level": 1,
+        "max_player_level": 1,
+        "field_size": (9, 9),
+        "min_food_level": 2,
+        "max_food_level": 2,
+        "max_num_food": 2,
+        "sight": 9,
+        "max_episode_steps": 100,
+        "force_coop": True,
+        "grid_observation": False,
+        "penalty": 0.0,
+    },
+)
+
+register(
+    id="Transportation-10x10-4p-2f-custom-v3",
+    entry_point="lbtransportation.foraging:TransportationEnv",
+    kwargs={
+        "players": 4,
+        "min_player_level": 1,
+        "max_player_level": 1,
+        "field_size": (10, 10),
+        "min_food_level": 2,
+        "max_food_level": 2,
+        "max_num_food": 2,
+        "sight": 10,
+        "max_episode_steps": 100,
+        "force_coop": True,
+        "grid_observation": False,
+        "penalty": 0.0,
+    },
+)
+
 
 register(
     id="Transportation-5x5-2p-1f-curriculum-v3",
